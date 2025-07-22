@@ -2,7 +2,7 @@
   "version": 2,
   "builds": [
     {
-      "src": "client/dist/**",
+      "src": "dist/public/**",
       "use": "@vercel/static"
     },
     {
@@ -28,11 +28,18 @@
       "dest": "/api/index.ts"
     },
     {
+      "src": "/assets/(.*)",
+      "dest": "/dist/public/assets/$1"
+    },
+    {
+      "src": "/",
+      "dest": "/api/index.ts"
+    },
+    {
       "src": "/(.*)",
-      "dest": "/client/dist/$1"
+      "dest": "/api/index.ts"
     }
   ],
-
   "env": {
     "NODE_ENV": "production"
   }
