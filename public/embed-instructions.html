@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShopSupport Pro - Shopify Integration</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+            color: #333;
+        }
+        .code-block {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 16px 0;
+            overflow-x: auto;
+        }
+        .highlight {
+            background: #fff3cd;
+            padding: 12px;
+            border-left: 4px solid #ffc107;
+            margin: 16px 0;
+        }
+        .step {
+            background: #e7f3ff;
+            padding: 16px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .step h3 {
+            margin-top: 0;
+            color: #0066cc;
+        }
+        pre {
+            margin: 0;
+            white-space: pre-wrap;
+        }
+        .copy-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            float: right;
+            margin-top: -40px;
+            margin-right: 8px;
+        }
+        .copy-btn:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>🛍️ ShopSupport Pro - Shopify Integration</h1>
+    <p>Follow these steps to add the live chat widget to your Shopify store.</p>
+
+    <div class="step">
+        <h3>Step 1: Replace Server URL</h3>
+        <p>First, you need to provide your ShopSupport Pro server URL. Replace <code>YOUR_SUPPORT_SERVER_URL</code> with your actual server URL in the code below.</p>
+    </div>
+
+    <div class="step">
+        <h3>Step 2: Add to Your Shopify Theme</h3>
+        <p>In your Shopify Admin:</p>
+        <ol>
+            <li>Go to <strong>Online Store → Themes</strong></li>
+            <li>Click <strong>Actions → Edit code</strong></li>
+            <li>Open <strong>layout/theme.liquid</strong></li>
+            <li>Add this code before the closing <code>&lt;/body&gt;</code> tag:</li>
+        </ol>
+    </div>
+
+    <div class="code-block">
+        <button class="copy-btn" onclick="copyToClipboard('shopify-code')">Copy</button>
+        <pre id="shopify-code">&lt;!-- ShopSupport Pro Chat Widget --&gt;
+&lt;script&gt;
+  window.SHOPSUPPORT_CONFIG = {
+    serverUrl: 'YOUR_SUPPORT_SERVER_URL', // Replace with your server URL
+    {% if customer %}
+    customer: {
+      id: {{ customer.id | json }},
+      email: {{ customer.email | json }},
+      name: {{ customer.first_name | append: ' ' | append: customer.last_name | json }},
+      phone: {{ customer.phone | json }}
+    }
+    {% endif %}
+  };
+&lt;/script&gt;
+&lt;script src="YOUR_SUPPORT_SERVER_URL/widget.js" async&gt;&lt;/script&gt;</pre>
+    </div>
+
+    <div class="highlight">
+        <strong>Important:</strong> Replace both instances of <code>YOUR_SUPPORT_SERVER_URL</code> with your actual ShopSupport Pro server URL (e.g., <code>https://your-support-server.com</code>).
+    </div>
+
+    <div class="step">
+        <h3>Step 3: Set Up Shopify API (For Full Integration)</h3>
+        <p>For complete customer data integration, you'll need to create a Shopify Custom App:</p>
+        <ol>
+            <li>Go to Shopify Admin → <strong>Settings → Apps and sales channels</strong></li>
+            <li>Click <strong>"Develop apps for your store"</strong></li>
+            <li>Click <strong>"Create an app"</strong> and name it "ShopSupport Pro"</li>
+            <li>Add these API scopes: <code>read_customers</code>, <code>read_orders</code></li>
+            <li>Get your access token and shop domain</li>
+        </ol>
+    </div>
+
+    <div class="step">
+        <h3>Step 4: Configure Environment Variables</h3>
+        <p>Add these to your ShopSupport Pro server environment:</p>
+    </div>
+
+    <div class="code-block">
+        <button class="copy-btn" onclick="copyToClipboard('env-vars')">Copy</button>
+        <pre id="env-vars">SHOPIFY_SHOP_DOMAIN=your-shop.myshopify.com
+SHOPIFY_ACCESS_TOKEN=shpat_your_access_token_here</pre>
+    </div>
+
+    <div class="step">
+        <h3>Step 5: Test the Widget</h3>
+        <p>After adding the code:</p>
+        <ul>
+            <li>Visit your Shopify store</li>
+            <li>Look for the chat widget in the bottom-right corner</li>
+            <li>Click it to test the chat functionality</li>
+            <li>Customer data should load automatically if logged in</li>
+        </ul>
+    </div>
+
+    <h2>Customization Options</h2>
+    
+    <h3>Change Widget Color</h3>
+    <div class="code-block">
+        <button class="copy-btn" onclick="copyToClipboard('widget-color')">Copy</button>
+        <pre id="widget-color">&lt;style&gt;
+#chat-toggle {
+    background-color: #your-brand-color !important;
+}
+&lt;/style&gt;</pre>
+    </div>
+
+    <h3>Move Widget to Left Side</h3>
+    <div class="code-block">
+        <button class="copy-btn" onclick="copyToClipboard('widget-position')">Copy</button>
+        <pre id="widget-position">&lt;style&gt;
+#chat-widget {
+    left: 20px !important;
+    right: auto !important;
+}
+&lt;/style&gt;</pre>
+    </div>
+
+    <h2>Need Help?</h2>
+    <p>If you encounter any issues:</p>
+    <ul>
+        <li>Check your browser's console for errors</li>
+        <li>Verify the server URL is correct and accessible</li>
+        <li>Ensure your ShopSupport Pro server is running</li>
+        <li>Contact your ShopSupport Pro administrator</li>
+    </ul>
+
+    <script>
+        function copyToClipboard(elementId) {
+            const element = document.getElementById(elementId);
+            const text = element.textContent;
+            
+            navigator.clipboard.writeText(text).then(function() {
+                const btn = element.parentElement.querySelector('.copy-btn');
+                const originalText = btn.textContent;
+                btn.textContent = 'Copied!';
+                btn.style.background = '#28a745';
+                
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.style.background = '#007bff';
+                }, 2000);
+            }).catch(function(err) {
+                console.error('Could not copy text: ', err);
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+<!-- 
+  ShopSupport Pro - Shopify Theme Integration Example
+  
+  Instructions:
+  1. Replace YOUR_SUPPORT_SERVER_URL with your actual server URL
+  2. Add this code to your theme.liquid file before </body>
+  3. Save and test
+-->
+
+<!-- ShopSupport Pro Chat Widget -->
+<script>
+  window.SHOPSUPPORT_CONFIG = {
+    serverUrl: 'YOUR_SUPPORT_SERVER_URL', // Replace with your server URL
+    {% if customer %}
+    customer: {
+      id: {{ customer.id | json }},
+      email: {{ customer.email | json }},
+      name: {{ customer.first_name | append: ' ' | append: customer.last_name | json }},
+      phone: {{ customer.phone | json }}
+    }
+    {% endif %}
+  };
+</script>
+<script src="YOUR_SUPPORT_SERVER_URL/widget.js" async></script>
+
+<!-- Optional: Custom Styling -->
+<style>
+  /* Customize widget colors to match your brand */
+  #chat-toggle {
+    background-color: {{ settings.accent_color | default: '#3b82f6' }} !important;
+  }
+  
+  /* Move widget to left side if needed */
+  /*
+  #chat-widget {
+    left: 20px !important;
+    right: auto !important;
+  }
+  */
+</style>
