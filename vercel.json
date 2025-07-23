@@ -35,10 +35,5 @@
       "dest": "/client/dist/$1"
     }
   ],
-  "functions": {
-    "api/index.js": {
-      "maxDuration": 30
-    }
-  },
   "outputDirectory": "client/dist"
 }
