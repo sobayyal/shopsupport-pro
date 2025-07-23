@@ -1,389 +1,351 @@
 (function() {
   'use strict';
-  
-  // Configuration - Replace with your ShopSupport Pro server URL
-  const SUPPORT_SERVER_URL = window.SHOPSUPPORT_CONFIG?.serverUrl || 'YOUR_SUPPORT_SERVER_URL';
-  
-  // Extract Shopify customer data if available
-  const getShopifyCustomerData = () => {
-    // Method 1: From window.SHOPSUPPORT_CONFIG (set by liquid template)
-    if (window.SHOPSUPPORT_CONFIG?.customer) {
-      return window.SHOPSUPPORT_CONFIG.customer;
-    }
-    
-    // Method 2: Try to get customer data from Shopify's liquid variables
-    if (window.meta && window.meta.customer) {
-      return {
-        id: window.meta.customer.id,
-        email: window.meta.customer.email,
-        name: `${window.meta.customer.first_name} ${window.meta.customer.last_name}`.trim(),
-        phone: window.meta.customer.phone
-      };
-    }
-    
-    // Method 3: Fallback for other Shopify variables
-    if (window.ShopifyAnalytics && window.ShopifyAnalytics.meta && window.ShopifyAnalytics.meta.customer) {
-      const customer = window.ShopifyAnalytics.meta.customer;
-      return {
-        id: customer.id,
-        email: customer.email,
-        name: customer.name || 'Customer'
-      };
-    }
-    
-    return null;
+
+  // Configuration
+  const config = window.SHOPSUPPORT_CONFIG || {
+    serverUrl: window.location.origin,
+    customer: null
   };
 
-  // Create and inject chat widget
-  const createChatWidget = () => {
-    const widgetContainer = document.createElement('div');
-    widgetContainer.id = 'shopsupport-widget';
-    widgetContainer.innerHTML = `
-      <div id="chat-widget" style="
+  let isWidgetOpen = false;
+  let conversationId = null;
+  let ws = null;
+
+  // Create widget HTML
+  function createWidget() {
+    const widgetHTML = `
+      <div id="shopsupport-widget" style="
         position: fixed;
         bottom: 20px;
         right: 20px;
         z-index: 999999;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       ">
-        <!-- Chat Window (Hidden by default) -->
+        <!-- Chat Button -->
+        <div id="chat-button" style="
+          width: 60px;
+          height: 60px;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          border-radius: 50%;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+          transition: all 0.3s ease;
+        " onclick="toggleChat()">
+          <svg width="24" height="24" fill="white" viewBox="0 0 24 24">
+            <path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h4l4 4 4-4h4c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
+          </svg>
+        </div>
+
+        <!-- Chat Window -->
         <div id="chat-window" style="
-          display: none;
-          width: 320px;
-          height: 400px;
+          position: absolute;
+          bottom: 80px;
+          right: 0;
+          width: 350px;
+          height: 500px;
           background: white;
           border-radius: 12px;
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
-          margin-bottom: 16px;
+          box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+          display: none;
+          flex-direction: column;
           overflow: hidden;
-          border: 1px solid #e2e8f0;
         ">
           <!-- Header -->
           <div style="
-            background: #3b82f6;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             padding: 16px;
             display: flex;
-            justify-content: space-between;
             align-items: center;
+            justify-content: space-between;
           ">
             <div>
-              <h3 style="margin: 0; font-size: 16px; font-weight: 600;">Chat Support</h3>
-              <p style="margin: 0; font-size: 14px; opacity: 0.9;">We're here to help!</p>
+              <h3 style="margin: 0; font-size: 16px; font-weight: 600;">Customer Support</h3>
+              <p style="margin: 4px 0 0; font-size: 12px; opacity: 0.8;">We're here to help!</p>
             </div>
-            <button id="close-chat" style="
+            <button onclick="toggleChat()" style="
               background: none;
               border: none;
               color: white;
-              font-size: 18px;
               cursor: pointer;
-              padding: 4px;
-            ">&times;</button>
+              font-size: 18px;
+              opacity: 0.8;
+            ">✕</button>
           </div>
-          
-          <!-- Messages Area -->
-          <div id="messages-container" style="
-            height: 280px;
-            overflow-y: auto;
+
+          <!-- Messages -->
+          <div id="chat-messages" style="
+            flex: 1;
             padding: 16px;
-            background: #f8fafc;
+            overflow-y: auto;
+            background: #f8f9fa;
           ">
-            <div id="messages"></div>
+            <div class="message agent-message" style="
+              margin-bottom: 12px;
+              padding: 8px 12px;
+              background: #e3f2fd;
+              border-radius: 12px 12px 12px 4px;
+              font-size: 14px;
+              line-height: 1.4;
+            ">
+              Hi! Welcome to our store. How can I help you today?
+            </div>
           </div>
-          
-          <!-- Input Area -->
+
+          <!-- Input -->
           <div style="
-            padding: 12px;
-            border-top: 1px solid #e2e8f0;
+            padding: 16px;
+            border-top: 1px solid #e0e0e0;
             background: white;
           ">
             <div style="display: flex; gap: 8px;">
               <input 
-                id="message-input" 
+                id="chat-input" 
                 type="text" 
                 placeholder="Type your message..."
                 style="
                   flex: 1;
-                  padding: 8px 12px;
-                  border: 1px solid #d1d5db;
-                  border-radius: 8px;
+                  padding: 12px;
+                  border: 1px solid #ddd;
+                  border-radius: 20px;
                   outline: none;
                   font-size: 14px;
                 "
+                onkeypress="handleKeyPress(event)"
               />
-              <button id="send-message" style="
-                background: #3b82f6;
+              <button onclick="sendMessage()" style="
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                 color: white;
                 border: none;
-                border-radius: 8px;
-                padding: 8px 16px;
+                border-radius: 50%;
+                width: 40px;
+                height: 40px;
                 cursor: pointer;
-                font-size: 14px;
-                font-weight: 500;
-              ">Send</button>
+                display: flex;
+                align-items: center;
+                justify-content: center;
+              ">
+                <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/>
+                </svg>
+              </button>
             </div>
           </div>
         </div>
-        
-        <!-- Chat Toggle Button -->
-        <button id="chat-toggle" style="
-          width: 56px;
-          height: 56px;
-          background: #3b82f6;
-          color: white;
-          border: none;
-          border-radius: 50%;
-          cursor: pointer;
-          box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 20px;
-          transition: transform 0.2s ease;
-        ">
-          💬
-        </button>
       </div>
     `;
-    
-    document.body.appendChild(widgetContainer);
-  };
 
-  // Chat functionality
-  let socket = null;
-  let conversationId = null;
-  let isConnected = false;
+    document.body.insertAdjacentHTML('beforeend', widgetHTML);
+  }
 
-  const connectWebSocket = () => {
-    const serverUrl = new URL(SUPPORT_SERVER_URL);
-    const protocol = serverUrl.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${serverUrl.host}/ws`;
+  // Toggle chat window
+  window.toggleChat = function() {
+    const chatWindow = document.getElementById('chat-window');
+    const chatButton = document.getElementById('chat-button');
     
-    socket = new WebSocket(wsUrl);
+    isWidgetOpen = !isWidgetOpen;
     
-    socket.onopen = () => {
-      console.log('ShopSupport: Connected to chat');
-      isConnected = true;
-      startConversation();
-    };
-    
-    socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      handleWebSocketMessage(data);
-    };
-    
-    socket.onclose = () => {
-      console.log('ShopSupport: Disconnected from chat');
-      isConnected = false;
-      // Try to reconnect after 3 seconds
-      setTimeout(() => {
-        if (!isConnected) {
-          connectWebSocket();
-        }
-      }, 3000);
-    };
-    
-    socket.onerror = (error) => {
-      console.error('ShopSupport: WebSocket error:', error);
-    };
-  };
-
-  const startConversation = async () => {
-    const customerData = getShopifyCustomerData();
-    
-    try {
-      // Fetch customer from Shopify if we have email
-      let localCustomerId = 1; // Default customer ID
+    if (isWidgetOpen) {
+      chatWindow.style.display = 'flex';
+      chatButton.style.transform = 'scale(0.9)';
+      document.getElementById('chat-input').focus();
       
-      if (customerData && customerData.email) {
-        try {
-          const customerResponse = await fetch(`${SUPPORT_SERVER_URL}/api/shopify/customer/${encodeURIComponent(customerData.email)}`);
-          if (customerResponse.ok) {
-            const shopifyCustomer = await customerResponse.json();
-            localCustomerId = shopifyCustomer.id;
-          }
-        } catch (error) {
-          console.log('ShopSupport: Could not sync customer data, using default');
-        }
-        
-        // Also create/update in local storage
-        await fetch(`${SUPPORT_SERVER_URL}/api/customers`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: customerData.name,
-            email: customerData.email,
-            phone: customerData.phone,
-            shopifyCustomerId: customerData.id?.toString()
-          })
-        }).catch(console.log);
+      // Connect WebSocket if not connected
+      if (!ws) {
+        connectWebSocket();
       }
-      
-      // Create conversation
-      const response = await fetch(`${SUPPORT_SERVER_URL}/api/conversations`, {
+    } else {
+      chatWindow.style.display = 'none';
+      chatButton.style.transform = 'scale(1)';
+    }
+  };
+
+  // Handle enter key press
+  window.handleKeyPress = function(event) {
+    if (event.key === 'Enter') {
+      sendMessage();
+    }
+  };
+
+  // Send message function
+  window.sendMessage = function() {
+    const input = document.getElementById('chat-input');
+    const message = input.value.trim();
+    
+    if (!message) return;
+
+    // Add message to chat
+    addMessage(message, 'customer');
+    input.value = '';
+
+    // Send to server
+    if (conversationId && ws && ws.readyState === WebSocket.OPEN) {
+      // Send via WebSocket if conversation exists
+      ws.send(JSON.stringify({
+        type: 'customer_message',
+        conversationId: conversationId,
+        content: message,
+        customerData: config.customer
+      }));
+    } else {
+      // Initial message via HTTP
+      fetch(`${config.serverUrl}/api/widget/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
-          customerId: localCustomerId,
-          status: 'waiting',
-          priority: 'normal'
+          customerData: config.customer,
+          message: message
         })
+      })
+      .then(response => response.json())
+      .then(data => {
+        conversationId = data.conversationId;
+        
+        if (data.autoResponse) {
+          setTimeout(() => {
+            addMessage(data.autoResponse, 'agent');
+          }, 1000);
+        }
+        
+        // Connect WebSocket for real-time updates
+        connectWebSocket();
+      })
+      .catch(error => {
+        console.error('Error sending message:', error);
+        addMessage('Sorry, there was an error sending your message. Please try again.', 'system');
       });
-      
-      if (response.ok) {
-        const conversation = await response.json();
-        conversationId = conversation.id;
-        
-        // Join the conversation via WebSocket
-        if (socket && socket.readyState === WebSocket.OPEN) {
-          socket.send(JSON.stringify({
-            type: 'join_conversation',
-            conversationId: conversationId
-          }));
-        }
-        
-        // Add welcome message
-        addMessage('Support Team', 'Hi! How can we help you today?', false);
-      }
-    } catch (error) {
-      console.error('ShopSupport: Error starting conversation:', error);
-      addMessage('System', 'Sorry, we are having trouble connecting. Please try again later.', false);
     }
   };
 
-  const handleWebSocketMessage = (data) => {
-    switch (data.type) {
-      case 'new_message':
-        if (data.message.conversationId === conversationId) {
-          const isOwn = data.message.senderType === 'customer';
-          const senderName = data.message.senderName || (isOwn ? 'You' : 'Support');
-          addMessage(senderName, data.message.content, isOwn);
-        }
-        break;
-      case 'typing':
-        // Handle typing indicator if needed
-        break;
-    }
-  };
-
-  const addMessage = (sender, content, isOwn = false) => {
-    const messagesContainer = document.getElementById('messages');
+  // Add message to chat
+  function addMessage(content, sender) {
+    const messagesContainer = document.getElementById('chat-messages');
     const messageDiv = document.createElement('div');
     
+    let bgColor, borderRadius, align;
+    
+    switch (sender) {
+      case 'customer':
+        bgColor = '#667eea';
+        borderRadius = '12px 12px 4px 12px';
+        align = 'flex-end';
+        messageDiv.style.color = 'white';
+        break;
+      case 'agent':
+        bgColor = '#e3f2fd';
+        borderRadius = '12px 12px 12px 4px';
+        align = 'flex-start';
+        break;
+      case 'system':
+        bgColor = '#fff3cd';
+        borderRadius = '12px';
+        align = 'center';
+        break;
+      default:
+        bgColor = '#f5f5f5';
+        borderRadius = '12px';
+        align = 'flex-start';
+    }
+    
+    messageDiv.className = `message ${sender}-message`;
     messageDiv.style.cssText = `
       margin-bottom: 12px;
-      display: flex;
-      ${isOwn ? 'justify-content: flex-end;' : 'justify-content: flex-start;'}
+      padding: 8px 12px;
+      background: ${bgColor};
+      border-radius: ${borderRadius};
+      font-size: 14px;
+      line-height: 1.4;
+      max-width: 80%;
+      align-self: ${align};
+      word-wrap: break-word;
     `;
     
-    messageDiv.innerHTML = `
-      <div style="
-        max-width: 80%;
-        padding: 8px 12px;
-        border-radius: 12px;
-        font-size: 14px;
-        line-height: 1.4;
-        ${isOwn ? 
-          'background: #3b82f6; color: white; border-bottom-right-radius: 4px;' : 
-          'background: white; color: #374151; border: 1px solid #e5e7eb; border-bottom-left-radius: 4px;'
-        }
-      ">
-        ${!isOwn ? `<div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">${sender}</div>` : ''}
-        <div>${content}</div>
-      </div>
-    `;
-    
+    messageDiv.textContent = content;
     messagesContainer.appendChild(messageDiv);
     
     // Scroll to bottom
-    const container = document.getElementById('messages-container');
-    container.scrollTop = container.scrollHeight;
-  };
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  }
 
-  const sendMessage = (content) => {
-    if (!content.trim() || !conversationId) return;
+  // Connect WebSocket for real-time updates
+  function connectWebSocket() {
+    if (!conversationId) return;
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${config.serverUrl.replace(/^https?:\/\//, '')}`;
     
-    // Add message to UI immediately
-    addMessage('You', content, true);
+    ws = new WebSocket(wsUrl);
     
-    // Send via WebSocket
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify({
-        type: 'send_message',
-        conversationId: conversationId,
-        content: content.trim()
-      }));
-    }
-  };
+    ws.onopen = function() {
+      console.log('Widget WebSocket connected');
+    };
+    
+    ws.onmessage = function(event) {
+      try {
+        const data = JSON.parse(event.data);
+        
+        if (data.type === 'new_message' && data.message.senderType === 'agent') {
+          addMessage(data.message.content, 'agent');
+        }
+      } catch (error) {
+        console.error('Error parsing WebSocket message:', error);
+      }
+    };
+    
+    ws.onclose = function() {
+      console.log('Widget WebSocket disconnected');
+    };
+    
+    ws.onerror = function(error) {
+      console.error('Widget WebSocket error:', error);
+    };
+  }
 
   // Initialize widget when DOM is ready
-  const initWidget = () => {
-    createChatWidget();
-    
-    // Event listeners
-    const chatToggle = document.getElementById('chat-toggle');
-    const chatWindow = document.getElementById('chat-window');
-    const closeChat = document.getElementById('close-chat');
-    const messageInput = document.getElementById('message-input');
-    const sendButton = document.getElementById('send-message');
-    
-    // Toggle chat window
-    chatToggle.addEventListener('click', () => {
-      if (chatWindow.style.display === 'none') {
-        chatWindow.style.display = 'block';
-        chatToggle.innerHTML = '✕';
-        
-        // Connect to WebSocket when opening chat
-        if (!isConnected) {
-          connectWebSocket();
-        }
-      } else {
-        chatWindow.style.display = 'none';
-        chatToggle.innerHTML = '💬';
-      }
-    });
-    
-    // Close chat window
-    closeChat.addEventListener('click', () => {
-      chatWindow.style.display = 'none';
-      chatToggle.innerHTML = '💬';
-    });
-    
-    // Send message on button click
-    sendButton.addEventListener('click', () => {
-      const message = messageInput.value;
-      if (message.trim()) {
-        sendMessage(message);
-        messageInput.value = '';
-      }
-    });
-    
-    // Send message on Enter key
-    messageInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') {
-        const message = messageInput.value;
-        if (message.trim()) {
-          sendMessage(message);
-          messageInput.value = '';
-        }
-      }
-    });
-    
-    // Add hover effects
-    chatToggle.addEventListener('mouseenter', () => {
-      chatToggle.style.transform = 'scale(1.05)';
-    });
-    
-    chatToggle.addEventListener('mouseleave', () => {
-      chatToggle.style.transform = 'scale(1)';
-    });
-  };
+  function init() {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', createWidget);
+    } else {
+      createWidget();
+    }
 
-  // Wait for DOM to be ready
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initWidget);
-  } else {
-    initWidget();
+    // Add hover effects
+    document.addEventListener('mouseover', function(e) {
+      if (e.target && e.target.id === 'chat-button') {
+        e.target.style.transform = 'scale(1.05)';
+      }
+    });
+
+    document.addEventListener('mouseout', function(e) {
+      if (e.target && e.target.id === 'chat-button' && !isWidgetOpen) {
+        e.target.style.transform = 'scale(1)';
+      }
+    });
   }
+
+  // Start initialization
+  init();
+
+  // Expose widget API
+  window.ShopSupportWidget = {
+    open: function() {
+      if (!isWidgetOpen) toggleChat();
+    },
+    close: function() {
+      if (isWidgetOpen) toggleChat();
+    },
+    sendMessage: function(message) {
+      if (message && typeof message === 'string') {
+        const input = document.getElementById('chat-input');
+        input.value = message;
+        sendMessage();
+      }
+    }
+  };
 
 })();
