@@ -3,15 +3,16 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Router, Route, Switch } from 'wouter';
 import { AuthProvider } from './contexts/AuthContext';
 import { WebSocketProvider } from './contexts/WebSocketContext';
-import { Toaster } from './components/ui/toaster';
+import { Toaster } from './components/BasicComponents';
 import LoginPage from './pages/LoginPage';
-import DashboardPage from './pages/DashboardPage';
-import ConversationsPage from './pages/ConversationsPage';
-import ConversationDetailPage from './pages/ConversationDetailPage';
-import UsersPage from './pages/UsersPage';
-import SettingsPage from './pages/SettingsPage';
-import Layout from './components/Layout';
-import ProtectedRoute from './components/ProtectedRoute';
+import { 
+  DashboardPage, 
+  ConversationsPage, 
+  ConversationDetailPage, 
+  UsersPage, 
+  SettingsPage 
+} from './pages/BasicPages';
+import { Layout, ProtectedRoute } from './components/BasicComponents';
 import './globals.css';
 
 const queryClient = new QueryClient({
