@@ -1,8 +1,7 @@
-import OpenAI from "openai";
+import OpenAI from 'openai';
 
-// the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
-const openai = new OpenAI({ 
-  apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || "your_openai_api_key_here" 
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY || ''
 });
 
 export interface AISuggestion {
@@ -11,151 +10,208 @@ export interface AISuggestion {
   category: string;
 }
 
-export async function generateResponseSuggestion(
-  customerMessage: string,
-  conversationContext: string[] = [],
-  customerData?: any
-): Promise<AISuggestion[]> {
-  try {
-    const contextText = conversationContext.length > 0 
-      ? `Previous conversation:\n${conversationContext.join('\n')}\n\n` 
-      : '';
-    
-    const customerInfo = customerData 
-      ? `Customer info: ${JSON.stringify(customerData, null, 2)}\n\n`
-      : '';
-
-    const prompt = `You are a helpful customer support AI assistant. Based on the customer's message and context, suggest 3 appropriate response options.
-
-${customerInfo}${contextText}Customer message: "${customerMessage}"
-
-Provide 3 response suggestions that are:
-1. Professional and helpful
-2. Specific to the customer's inquiry
-3. Appropriate for a customer support context
-
-Respond with JSON in this format:
-{
-  "suggestions": [
-    {
-      "text": "response text",
-      "confidence": 0.9,
-      "category": "information|support|resolution"
+class OpenAIService {
+  async generateResponseSuggestions(conversationContext: string): Promise<AISuggestion[]> {
+    if (!process.env.OPENAI_API_KEY) {
+      return [
+        {
+          text: "Thank you for contacting us. How can I help you today?",
+          confidence: 0.8,
+          category: "greeting"
+        },
+        {
+          text: "I understand your concern. Let me look into this for you right away.",
+          confidence: 0.7,
+          category: "acknowledgment"
+        },
+        {
+          text: "Could you please provide more details about the issue you're experiencing?",
+          confidence: 0.6,
+          category: "information_request"
+        }
+      ];
     }
-  ]
-}`;
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
+    try {
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `You are a customer support AI assistant. Based on the conversation context, generate 3 helpful response suggestions for a human agent. Each suggestion should be:
+            1. Professional and empathetic
+            2. Actionable and specific
+            3. Appropriate for the conversation context
+            
+            Return the suggestions as a JSON array with objects containing:
+            - text: the suggested response
+            - confidence: a number between 0 and 1 indicating how confident you are
+            - category: one of "greeting", "acknowledgment", "information_request", "solution", "follow_up", "escalation"
+            
+            Conversation context:
+            ${conversationContext}`
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 500
+      });
+
+      const content = response.choices[0]?.message?.content;
+      if (!content) {
+        throw new Error('No response from OpenAI');
+      }
+
+      const suggestions = JSON.parse(content);
+      return Array.isArray(suggestions) ? suggestions : [];
+    } catch (error) {
+      console.error('Error generating AI suggestions:', error);
+      
+      // Fallback suggestions
+      return [
         {
-          role: "system",
-          content: "You are an expert customer support AI that generates helpful response suggestions."
+          text: "Thank you for reaching out. I'm here to help you with your inquiry.",
+          confidence: 0.8,
+          category: "greeting"
         },
         {
-          role: "user",
-          content: prompt
+          text: "I understand this situation can be frustrating. Let me assist you in resolving this.",
+          confidence: 0.7,
+          category: "acknowledgment"
+        },
+        {
+          text: "To better assist you, could you please provide additional details about your concern?",
+          confidence: 0.6,
+          category: "information_request"
         }
-      ],
-      response_format: { type: "json_object" },
-      max_tokens: 800
-    });
+      ];
+    }
+  }
 
-    const result = JSON.parse(response.choices[0].message.content || '{"suggestions": []}');
-    return result.suggestions || [];
-  } catch (error) {
-    console.error("Error generating AI suggestions:", error);
-    return [];
+  async generateAutoResponse(customerMessage: string, customerData?: any): Promise<string | null> {
+    if (!process.env.OPENAI_API_KEY) {
+      return "Thank you for contacting us! A support agent will be with you shortly.";
+    }
+
+    try {
+      // Only generate auto-response for certain types of messages
+      const commonQueries = [
+        'hello', 'hi', 'hey', 'help', 'support', 'order', 'shipping', 'return', 'refund'
+      ];
+      
+      const isCommonQuery = commonQueries.some(query => 
+        customerMessage.toLowerCase().includes(query)
+      );
+
+      if (!isCommonQuery) {
+        return null; // Let human agent handle complex queries
+      }
+
+      const customerInfo = customerData ? 
+        `Customer info: ${customerData.name || 'Unknown'} (${customerData.email || 'No email'})` : 
+        'Anonymous customer';
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `You are an auto-response system for a Shopify store's customer support. Generate a brief, helpful initial response to acknowledge the customer's message and set expectations.
+
+            Guidelines:
+            - Keep responses under 50 words
+            - Be friendly and professional
+            - Set expectation that a human agent will follow up if needed
+            - For simple greetings, provide a welcoming response
+            - For order/shipping questions, mention you're checking their order
+            - For returns/refunds, acknowledge and mention policy review
+            
+            ${customerInfo}
+            Customer message: "${customerMessage}"`
+          }
+        ],
+        temperature: 0.5,
+        max_tokens: 100
+      });
+
+      return response.choices[0]?.message?.content || null;
+    } catch (error) {
+      console.error('Error generating auto-response:', error);
+      return "Thank you for contacting us! A support agent will be with you shortly.";
+    }
+  }
+
+  async categorizeMessage(message: string): Promise<string> {
+    if (!process.env.OPENAI_API_KEY) {
+      return 'general';
+    }
+
+    try {
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `Categorize this customer message into one of these categories:
+            - order_inquiry
+            - shipping_tracking
+            - return_refund
+            - product_question
+            - technical_issue
+            - billing_payment
+            - complaint
+            - compliment
+            - general
+            
+            Return only the category name.
+            
+            Message: "${message}"`
+          }
+        ],
+        temperature: 0.1,
+        max_tokens: 20
+      });
+
+      return response.choices[0]?.message?.content?.trim() || 'general';
+    } catch (error) {
+      console.error('Error categorizing message:', error);
+      return 'general';
+    }
+  }
+
+  async generateSummary(conversation: any[]): Promise<string> {
+    if (!process.env.OPENAI_API_KEY) {
+      return 'Conversation summary not available.';
+    }
+
+    try {
+      const conversationText = conversation
+        .map(msg => `${msg.senderType}: ${msg.content}`)
+        .join('\n');
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `Summarize this customer support conversation in 2-3 sentences. Focus on:
+            1. The customer's main issue or request
+            2. Key actions taken by the agent
+            3. Current status or resolution
+            
+            Conversation:
+            ${conversationText}`
+          }
+        ],
+        temperature: 0.3,
+        max_tokens: 150
+      });
+
+      return response.choices[0]?.message?.content || 'No summary available.';
+    } catch (error) {
+      console.error('Error generating summary:', error);
+      return 'Error generating conversation summary.';
+    }
   }
 }
 
-export async function categorizeMessage(message: string): Promise<{
-  category: string;
-  priority: string;
-  sentiment: string;
-}> {
-  try {
-    const prompt = `Analyze this customer support message and categorize it:
-
-Message: "${message}"
-
-Provide analysis in JSON format:
-{
-  "category": "order_inquiry|product_question|complaint|compliment|technical_support|return_request|other",
-  "priority": "low|normal|high|urgent",
-  "sentiment": "positive|neutral|negative"
-}`;
-
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "system",
-          content: "You are an expert at analyzing customer support messages for categorization and routing."
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      response_format: { type: "json_object" },
-      max_tokens: 200
-    });
-
-    const result = JSON.parse(response.choices[0].message.content || '{}');
-    return {
-      category: result.category || 'other',
-      priority: result.priority || 'normal',
-      sentiment: result.sentiment || 'neutral'
-    };
-  } catch (error) {
-    console.error("Error categorizing message:", error);
-    return {
-      category: 'other',
-      priority: 'normal',
-      sentiment: 'neutral'
-    };
-  }
-}
-
-export async function generateAutoResponse(
-  customerMessage: string,
-  customerData?: any
-): Promise<string | null> {
-  try {
-    const customerInfo = customerData 
-      ? `Customer info: Name: ${customerData.name}, Email: ${customerData.email}\n`
-      : '';
-
-    const prompt = `You are an AI customer support assistant. The customer has sent this message:
-
-${customerInfo}Customer message: "${customerMessage}"
-
-If this is a simple query that can be handled automatically (like basic information requests, order status inquiries with order details provided, etc.), provide a helpful response.
-
-If this requires human intervention, respond with "HUMAN_REQUIRED".
-
-Keep responses friendly, professional, and concise.`;
-
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "system",
-          content: "You are a customer support AI that can handle simple queries automatically or escalate to humans when needed."
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      max_tokens: 300
-    });
-
-    const content = response.choices[0].message.content?.trim();
-    return content === "HUMAN_REQUIRED" ? null : content || null;
-  } catch (error) {
-    console.error("Error generating auto response:", error);
-    return null;
-  }
-}
+export const openai = new OpenAIService();
