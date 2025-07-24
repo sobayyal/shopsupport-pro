@@ -65,7 +65,7 @@ class OpenAIService {
       return Array.isArray(suggestions) ? suggestions : [];
     } catch (error) {
       console.error('Error generating AI suggestions:', error);
-      
+
       // Fallback suggestions
       return [
         {
@@ -97,8 +97,8 @@ class OpenAIService {
       const commonQueries = [
         'hello', 'hi', 'hey', 'help', 'support', 'order', 'shipping', 'return', 'refund'
       ];
-      
-      const isCommonQuery = commonQueries.some(query => 
+
+      const isCommonQuery = commonQueries.some(query =>
         customerMessage.toLowerCase().includes(query)
       );
 
@@ -106,8 +106,8 @@ class OpenAIService {
         return null; // Let human agent handle complex queries
       }
 
-      const customerInfo = customerData ? 
-        `Customer info: ${customerData.name || 'Unknown'} (${customerData.email || 'No email'})` : 
+      const customerInfo = customerData ?
+        `Customer info: ${customerData.name || 'Unknown'} (${customerData.email || 'No email'})` :
         'Anonymous customer';
 
       const response = await openaiClient.chat.completions.create({

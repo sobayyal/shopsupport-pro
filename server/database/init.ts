@@ -30,7 +30,7 @@ export async function initializeDatabase() {
       await db.insert(schema.users).values({
         username: 'admin',
         email: 'admin@shopsupport.com',
-        password: adminPassword,
+        passwordHash: adminPassword, // ✅ Fixed: Use passwordHash
         role: 'admin',
         isOnline: true
       });
@@ -51,7 +51,7 @@ export async function initializeDatabase() {
       await db.insert(schema.users).values({
         username: 'agent1',
         email: 'agent1@shopsupport.com',
-        password: agentPassword,
+        passwordHash: agentPassword, // ✅ Fixed: Use passwordHash
         role: 'agent',
         isOnline: false
       });
@@ -72,7 +72,7 @@ export async function initializeDatabase() {
       await db.insert(schema.users).values({
         username: 'manager1',
         email: 'manager1@shopsupport.com',
-        password: managerPassword,
+        passwordHash: managerPassword, // ✅ Fixed: Use passwordHash
         role: 'manager',
         isOnline: false
       });

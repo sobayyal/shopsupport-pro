@@ -39,7 +39,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // Check for existing token on app load
     const savedToken = localStorage.getItem('auth_token');
     const savedUser = localStorage.getItem('auth_user');
-    
+
     if (savedToken && savedUser) {
       try {
         setToken(savedToken);
@@ -50,15 +50,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
         localStorage.removeItem('auth_user');
       }
     }
-    
+
     setIsLoading(false);
   }, []);
 
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
       setIsLoading(true);
-      // here it is not able to detect the backend api 
-      const response = await fetch('http://localhost:300/api/auth/login', {
+      // ✅ Fixed: Changed from localhost:300 to localhost:3000
+      const response = await fetch('http://localhost:3000/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -71,14 +71,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       const data = await response.json();
-      
+
       setToken(data.token);
       setUser(data.user);
-      
+
       // Save to localStorage
       localStorage.setItem('auth_token', data.token);
       localStorage.setItem('auth_user', JSON.stringify(data.user));
-      
+
       return true;
     } catch (error) {
       console.error('Login error:', error);
