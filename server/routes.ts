@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import { db } from './database/init.js';
 import * as schema from './database/schema.js';
 import { eq, desc, and, or } from 'drizzle-orm';
-import { openai } from './services/openai.js';
+import { openaiService } from './services/openai.js';
 import { shopifyService } from './services/shopify.js';
 import path from 'path';
 import { fileURLToPath } from 'url';

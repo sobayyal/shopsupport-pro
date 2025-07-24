@@ -31,7 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch('http://localhost:300/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

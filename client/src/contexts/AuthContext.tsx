@@ -57,8 +57,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
       setIsLoading(true);
-      
-      const response = await fetch('/api/auth/login', {
+      // here it is not able to detect the backend api 
+      const response = await fetch('http://localhost:300/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
