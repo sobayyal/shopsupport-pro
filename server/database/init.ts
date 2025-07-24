@@ -1,24 +1,20 @@
-import Database from 'better-sqlite3';
-import { drizzle } from 'drizzle-orm/better-sqlite3';
-import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
-import * as schema from './schema.js';
+import { neon } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/neon-http';
+import * as schema from '../../shared/schema.js';
 import bcrypt from 'bcryptjs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { eq } from 'drizzle-orm';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+if (!process.env.DATABASE_URL) {
+  throw new Error('DATABASE_URL environment variable is required');
+}
 
-// Initialize SQLite database
-const sqlite = new Database(process.env.DATABASE_URL || 'shopsupport.db');
-export const db = drizzle(sqlite, { schema });
+// Initialize Neon database connection
+const sql = neon(process.env.DATABASE_URL);
+export const db = drizzle(sql, { schema });
 
 export async function initializeDatabase() {
   try {
     console.log('🔄 Initializing database...');
-    
-    // Run migrations
-    migrate(db, { migrationsFolder: path.join(__dirname, 'migrations') });
     
     // Create default admin user if doesn't exist
     const existingAdmin = await db.select()
@@ -31,7 +27,7 @@ export async function initializeDatabase() {
       await db.insert(schema.users).values({
         username: 'admin',
         email: 'admin@shopsupport.com',
-        passwordHash: adminPassword,
+        password: adminPassword,
         role: 'admin',
         isOnline: true
       });
@@ -52,7 +48,7 @@ export async function initializeDatabase() {
       await db.insert(schema.users).values({
         username: 'agent1',
         email: 'agent1@shopsupport.com',
-        passwordHash: agentPassword,
+        password: agentPassword,
         role: 'agent',
         isOnline: false
       });
@@ -73,7 +69,7 @@ export async function initializeDatabase() {
       await db.insert(schema.users).values({
         username: 'manager1',
         email: 'manager1@shopsupport.com',
-        passwordHash: managerPassword,
+        password: managerPassword,
         role: 'manager',
         isOnline: false
       });
@@ -89,98 +85,3 @@ export async function initializeDatabase() {
     throw error;
   }
 }
-
-// Helper function to create tables if they don't exist
-export function createTables() {
-  // Create users table
-  sqlite.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT NOT NULL UNIQUE,
-      email TEXT NOT NULL UNIQUE,
-      password_hash TEXT NOT NULL,
-      role TEXT NOT NULL DEFAULT 'agent' CHECK (role IN ('agent', 'manager', 'admin')),
-      is_online INTEGER NOT NULL DEFAULT 0,
-      last_seen TEXT DEFAULT CURRENT_TIMESTAMP,
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-  
-  // Create customers table
-  sqlite.exec(`
-    CREATE TABLE IF NOT EXISTS customers (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      shopify_customer_id TEXT UNIQUE,
-      name TEXT NOT NULL,
-      email TEXT NOT NULL,
-      phone TEXT,
-      location TEXT,
-      total_orders INTEGER NOT NULL DEFAULT 0,
-      total_spent TEXT NOT NULL DEFAULT '0.00',
-      join_date TEXT DEFAULT CURRENT_TIMESTAMP,
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-  
-  // Create conversations table
-  sqlite.exec(`
-    CREATE TABLE IF NOT EXISTS conversations (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      customer_id INTEGER NOT NULL REFERENCES customers(id),
-      assigned_agent_id INTEGER REFERENCES users(id),
-      status TEXT NOT NULL DEFAULT 'waiting' CHECK (status IN ('waiting', 'active', 'resolved', 'closed')),
-      priority TEXT NOT NULL DEFAULT 'normal' CHECK (priority IN ('low', 'normal', 'high', 'urgent')),
-      tags TEXT DEFAULT '[]',
-      subject TEXT,
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-  
-  // Create messages table
-  sqlite.exec(`
-    CREATE TABLE IF NOT EXISTS messages (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      conversation_id INTEGER NOT NULL REFERENCES conversations(id),
-      sender_id INTEGER REFERENCES users(id),
-      sender_type TEXT NOT NULL CHECK (sender_type IN ('customer', 'agent', 'system', 'ai')),
-      content TEXT NOT NULL,
-      message_type TEXT NOT NULL DEFAULT 'text' CHECK (message_type IN ('text', 'image', 'file', 'system')),
-      metadata TEXT DEFAULT '{}',
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-  
-  // Create shopify_orders table
-  sqlite.exec(`
-    CREATE TABLE IF NOT EXISTS shopify_orders (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      customer_id INTEGER NOT NULL REFERENCES customers(id),
-      shopify_order_id TEXT NOT NULL UNIQUE,
-      order_number TEXT NOT NULL,
-      status TEXT NOT NULL,
-      total_price TEXT NOT NULL,
-      items TEXT NOT NULL,
-      fulfillment_status TEXT,
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-  
-  // Create ai_suggestions table
-  sqlite.exec(`
-    CREATE TABLE IF NOT EXISTS ai_suggestions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      conversation_id INTEGER NOT NULL REFERENCES conversations(id),
-      suggestion TEXT NOT NULL,
-      confidence REAL NOT NULL,
-      category TEXT NOT NULL,
-      used INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-}
-
-import { eq } from 'drizzle-orm';

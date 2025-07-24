@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
+const openaiClient = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || ''
 });
 
@@ -33,7 +33,7 @@ class OpenAIService {
     }
 
     try {
-      const response = await openai.chat.completions.create({
+      const response = await openaiClient.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           {
@@ -110,7 +110,7 @@ class OpenAIService {
         `Customer info: ${customerData.name || 'Unknown'} (${customerData.email || 'No email'})` : 
         'Anonymous customer';
 
-      const response = await openai.chat.completions.create({
+      const response = await openaiClient.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           {
@@ -146,7 +146,7 @@ class OpenAIService {
     }
 
     try {
-      const response = await openai.chat.completions.create({
+      const response = await openaiClient.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           {
@@ -188,7 +188,7 @@ class OpenAIService {
         .map(msg => `${msg.senderType}: ${msg.content}`)
         .join('\n');
 
-      const response = await openai.chat.completions.create({
+      const response = await openaiClient.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           {
@@ -214,4 +214,4 @@ class OpenAIService {
   }
 }
 
-export const openai = new OpenAIService();
+export const openaiService = new OpenAIService();
